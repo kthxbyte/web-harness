@@ -26,6 +26,7 @@ const USAGE = `webh ${VERSION} — give an agent a live browser session
 
 USAGE
   webh <tool> [--flag value ...]        run one tool
+  webh start [--dir DIR] [--url URL]    one-command setup for a project: browser + daemon
   webh tools [--json]                   list every tool
   webh help [tool]                      describe one tool
   webh status                           browser + guardrail status
@@ -196,6 +197,57 @@ function defaultShotPath(result) {
   return path.join(config.screenshotsDir, `${stamp}.${ext}`);
 }
 
+/** Human-facing summary for `webh start`. */
+function renderStart(report, { json } = {}) {
+  if (json) {
+    process.stdout.write(JSON.stringify(report, null, 2) + '\n');
+    return;
+  }
+  const p = report.project;
+  if (report.error) {
+    process.stderr.write(`✗ ${report.error}\n`);
+    return;
+  }
+
+  const kindText = p.kind === 'empty'
+    ? 'empty directory (new project)'
+    : p.kind === 'project'
+      ? `project (${p.markers.slice(0, 4).join(', ')})`
+      : `${p.fileCount} file(s)`;
+
+  const lines = [];
+  lines.push('');
+  lines.push(`  web-harness — ${report.reused ? 'already running' : 'started'}`);
+  lines.push('');
+  lines.push(`  project   ${report.project.dir}`);
+  lines.push(`            ${kindText}`);
+  if (p.resumable) {
+    lines.push(`            resuming: ${p.priorSessions} recorded action(s)${p.resumeUrl ? `, last page ${p.resumeUrl}` : ''}`);
+  }
+  lines.push(`  state     ${report.stateDir}`);
+  if (report.browser) {
+    lines.push(`  browser   ${report.browser.path}`);
+    lines.push(`            debug port ${report.browser.debugPort}, extension ${report.browser.extensionLoaded ? 'loaded' : 'NOT loaded'}`);
+    lines.push(`  opened    ${report.url}`);
+  }
+  if (report.daemon) {
+    lines.push(`  daemon    ${report.daemon.endpoint}`);
+  }
+  lines.push('');
+  if (report.reused) {
+    lines.push(`  A daemon is already serving this project on port ${report.daemon.port}; left it alone.`);
+  } else if (report.daemon?.tokenPresent) {
+    lines.push('  Next: open the side panel (Brave toolbar icon) and paste the token:');
+    lines.push('');
+    lines.push('      webh token');
+    lines.push('');
+    lines.push('  If the panel is not installed yet: brave://extensions → Developer mode →');
+    lines.push(`  Load unpacked → ${path.join(config.root, 'extension')}`);
+  }
+  lines.push('');
+  process.stdout.write(lines.join('\n'));
+}
+
 /**
  * Find the subcommand, allowing meta-flags to appear before it.
  *
@@ -268,6 +320,16 @@ async function main() {
   if (command === 'tools') {
     printTools(rest.includes('--json'));
     return 0;
+  }
+
+  // `start` is the one-command setup: browser + extension + daemon for a project.
+  if (command === 'start') {
+    const { startProject } = await import('./lib/start.mjs');
+    const { flags: startFlags } = parseArgv(rest);
+    const projDir = typeof startFlags.dir === 'string' ? startFlags.dir : process.cwd();
+    const report = await startProject({ dir: projDir, open: typeof startFlags.url === 'string' ? startFlags.url : null });
+    renderStart(report, { json: Boolean(startFlags.json) });
+    return report.error ? 1 : 0;
   }
 
   // `daemon` is a long-lived server, not a tool. Run it in THIS process so Ctrl-C and

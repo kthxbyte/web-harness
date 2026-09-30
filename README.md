@@ -58,17 +58,54 @@ A Brave/Chrome side panel that stays beside the tab you are working on and drive
 survives navigation, tab switches and reloads, because it is a browser UI element rather
 than something injected into the page.
 
+Bring everything up with one command, from inside the project you are working on:
+
 ```console
-$ brave-browser --remote-debugging-port=9222 --user-data-dir=/tmp/webh-debug   # terminal 1
-$ webh daemon                                                                  # terminal 2
-$ webh token                                                                   # paste into the panel
+$ cd ~/Code/my-site
+$ webh start
 ```
 
-Then load it: `brave://extensions` → **Developer mode** → **Load unpacked** →
-`extension/`. Click the toolbar icon to open the panel and paste the token into ⚙.
+That starts a browser with the extension loaded and a daemon that owns it, and keeps all
+state in `./.webh`:
 
-Verify: the status line reads `daemon ok · <browser>` with your active tab named beneath
-it, and follows along as you switch tabs.
+```
+  web-harness — started
+
+  project   /home/you/Code/my-site
+            project (package.json, index.html)
+            resuming: 42 recorded action(s), last page http://localhost:5173/pricing
+  state     /home/you/Code/my-site/.webh
+  browser   /usr/bin/brave-browser
+            debug port 9222, extension loaded
+  opened    http://localhost:5173/pricing
+  daemon    http://127.0.0.1:8790
+
+  Next: open the side panel (Brave toolbar icon) and paste the token:
+
+      webh token
+```
+
+Then load the panel once: `brave://extensions` → **Developer mode** → **Load unpacked** →
+`extension/`. Click the toolbar icon and paste the token into ⚙. The status line should read
+`daemon ok · <browser>` with your active tab named beneath it.
+
+Running `webh start` again is safe — it detects what is already running for that project and
+reuses it rather than starting a second browser, which matters because only one process can
+hold the CDP connection.
+
+**State is per project.** The session, audit trail and browser profile live in
+`<project>/.webh`, so two projects never share a browser profile or an audit log, and you can
+tell at a glance whether a project has been used before. `webh start` classifies the
+directory as it finds it:
+
+| Directory | What happens |
+|---|---|
+| empty | a new project; starts on `about:blank` |
+| has `package.json`, `index.html`, `.git`, … | a project; starts on `about:blank` |
+| already has `.webh` with an audit trail | **resumes** — reopens the last page you were on |
+
+The `.webh` directory writes its own `.gitignore`, so it never shows up in `git status` even
+in projects whose ignore rules you do not control.
 
 Full setup, architecture and security model: [extension/README.md](extension/README.md).
 
@@ -222,6 +259,7 @@ hang the agent, so dialogs are auto-accepted and reported in `page_snapshot`.
 | Variable | Default | Purpose |
 |---|---|---|
 | `WEBH_STATE_DIR` | `./.webh` | Profiles, screenshots, session and audit files |
+| `WEBH_PROJECT_DIR` | — | Scope state to `<dir>/.webh` instead of the harness. Set by `webh start` |
 | `WEBH_ATTACH_PORT` | `9222` | Where to look for your browser |
 | `WEBH_LAUNCH_PORT` | `9333` | Port for the browser the harness launches |
 | `WEBH_BROWSER_PATH` | auto | Explicit Chromium/Chrome binary |

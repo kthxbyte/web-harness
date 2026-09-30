@@ -23,14 +23,29 @@ function envBool(name, fallback) {
 }
 
 /**
- * State directory. MUST live somewhere writable: Chromium refuses to start without a
- * writable --user-data-dir, and a sandboxed agent workspace is the one place we are
- * always allowed to write.
+ * State directory.
+ *
+ * Resolution order:
+ *   1. WEBH_STATE_DIR   explicit override, used by tests and advanced setups
+ *   2. WEBH_PROJECT_DIR the project being worked on: state lands in <project>/.webh
+ *   3. the harness checkout itself
+ *
+ * Case 2 is what makes `webh start` project-scoped: the session log, audit trail and
+ * browser profile belong to the project you are working on, not to wherever the harness
+ * happens to be installed.
+ *
+ * The directory MUST be writable — Chromium refuses to start without a writable
+ * --user-data-dir.
  */
-const stateDir = path.resolve(envStr('WEBH_STATE_DIR', path.join(ROOT, '.webh')));
+const projectDir = envStr('WEBH_PROJECT_DIR', null);
+const stateDir = path.resolve(
+  envStr('WEBH_STATE_DIR', projectDir ? path.join(path.resolve(projectDir), '.webh') : path.join(ROOT, '.webh')),
+);
 
 export const config = {
   root: ROOT,
+  /** The project being worked on, when the caller scoped one; null means "the harness". */
+  projectDir: projectDir ? path.resolve(projectDir) : null,
   stateDir,
   profileDir: path.join(stateDir, 'profile'),
   auditLog: path.join(stateDir, 'audit.jsonl'),
@@ -43,6 +58,8 @@ export const config = {
   attachHost: envStr('WEBH_ATTACH_HOST', '127.0.0.1'),
   /** Port used when we launch our own browser. Picked off the default port to avoid clashing. */
   launchPort: envInt('WEBH_LAUNCH_PORT', 9333),
+  /** Port the side-panel daemon listens on. `webh start` moves to a free one if taken. */
+  daemonPort: envInt('WEBH_DAEMON_PORT', 8790),
 
   browserPath: envStr('WEBH_BROWSER_PATH', null),
   headless: envBool('WEBH_HEADLESS', true),

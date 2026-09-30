@@ -138,7 +138,30 @@ export class Daemon {
     const addr = this.address;
     await fsp.writeFile(
       file,
-      JSON.stringify({ version: 1, url: `http://${this.host}:${addr?.port ?? this.port}`, token: this.token, pid: process.pid, startedAt: this.startedAt }, null, 2),
+      JSON.stringify(
+        {
+          version: 1,
+          url: `http://${this.host}:${addr?.port ?? this.port}`,
+          // `port` is recorded explicitly, not just embedded in `url`: consumers deciding
+          // whether this daemon is still reachable need the number, not a string to parse.
+          port: addr?.port ?? this.port,
+          host: this.host,
+          token: this.token,
+          pid: process.pid,
+          startedAt: this.startedAt,
+          /**
+           * The browser this daemon attached to. `webh start` reads these to decide
+           * whether a project already has a browser running: the browser holds a lock on
+           * its profile, so launching a second one silently forwards and exits rather
+           * than opening the port we asked for.
+           */
+          browserPid: Number(process.env.WEBH_PROJECT_BROWSER_PID) || null,
+          browserPort: this.harness?.browser?.meta?.port ?? (Number(process.env.WEBH_PROJECT_BROWSER_PORT) || null),
+          projectDir: process.env.WEBH_PROJECT_DIR ?? null,
+        },
+        null,
+        2,
+      ),
       { mode: 0o600 },
     );
     return file;

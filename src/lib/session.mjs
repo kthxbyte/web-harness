@@ -1,4 +1,5 @@
 import fsp from 'node:fs/promises';
+import path from 'node:path';
 import { config } from './config.mjs';
 import { log } from './log.mjs';
 
@@ -14,6 +15,27 @@ import { log } from './log.mjs';
  */
 
 const DEFAULTS = { version: 1, pid: null, port: null, host: null, browser: null, wsUrl: null, lastUrl: null, launchedAt: null, profileDir: null };
+
+/**
+ * Make a state directory ignore itself.
+ *
+ * `webh start` defaults state into the project being worked on, and a git-visible `.webh`
+ * would appear as untracked noise in every `git status` — including in projects whose
+ * .gitignore we do not control. A `.gitignore` holding `*` plus `!.gitignore` makes the
+ * directory self-ignoring wherever it lands, without editing the project's own files.
+ */
+export async function ensureSelfIgnoring(dir = config.stateDir) {
+  await fsp.mkdir(dir, { recursive: true });
+  const marker = path.join(dir, '.gitignore');
+  const body = '# Written by web-harness: keeps this directory out of version control.\n*\n!.gitignore\n';
+  try {
+    if ((await fsp.readFile(marker, 'utf8')) === body) return false;
+  } catch {
+    // no marker yet
+  }
+  await fsp.writeFile(marker, body);
+  return true;
+}
 
 export async function readSessionFile() {
   try {
