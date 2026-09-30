@@ -114,6 +114,18 @@ defences:
 The token is written to `.webh/daemon.json` with mode `0600`. It is never returned by any
 unauthenticated endpoint, including `/manifest`.
 
+## What is verified, and what is not
+
+`test/e2e/extension.test.mjs` proves the whole chain without any UI interaction, by
+launching a disposable Brave with the extension and reading the daemon's own log: the
+manifest parses, the service worker registers, `chrome.storage` is read, `host_permissions`
+is granted, the request passes the origin and token checks, the active tab is announced with
+the right title, and the daemon executes a tool against it.
+
+**Not covered by that test:** the panel's *rendering* — that the side panel opens, lays out
+correctly, and shows results. That needs human eyes, and it is the reason the setup steps
+above ask you to confirm the status line.
+
 ## Known limitations
 
 - **`chrome://` and extension pages cannot be controlled.** They have no useful CDP content
@@ -123,5 +135,5 @@ unauthenticated endpoint, including `/manifest`.
   and will reuse this same daemon.
 - **Two windows**: the panel follows `lastFocusedWindow`, so with several Brave windows open
   it targets the focused one.
-- The daemon has no authentication persistence for multiple extensions; regenerating the
-  token (restart) requires re-pasting.
+- **Restarting the daemon rotates the token**, so the panel needs it re-pasted. Token
+  persistence across restarts is a small follow-up.
