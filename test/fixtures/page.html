@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>webh fixture — product cards</title>
+<style>
+  :root { --brand: #2563eb; }
+  * { box-sizing: border-box; }
+  body { font-family: system-ui, sans-serif; margin: 0; padding: 24px; background: #f8fafc; color: #0f172a; }
+  header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  h1 { font-size: 24px; margin: 0; }
+  #nav ul { display: flex; gap: 16px; list-style: none; margin: 0; padding: 0; }
+  #nav a { color: var(--brand); text-decoration: none; }
+  .cards { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; }
+  .card h2 { font-size: 16px; margin: 0 0 8px; }
+  .card .price { font-weight: 700; color: var(--brand); }
+  #hero { display: none; }
+  .hidden-thing { display: none; }
+  #overlay { position: fixed; inset: 0; background: rgba(15,23,42,.5); display: none; align-items: center; justify-content: center; }
+  #overlay.open { display: flex; }
+  #modal { background: #fff; padding: 24px; border-radius: 12px; min-width: 320px; }
+  .tag { position: absolute; top: 0; left: 0; padding: 2px 6px; background: var(--brand); color: #fff; font-size: 11px; }
+  .card { position: relative; }
+  button { font: inherit; padding: 8px 14px; border-radius: 6px; border: 1px solid #cbd5e1; background: #fff; cursor: pointer; }
+  button.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  #save-area { margin-top: 24px; }
+  #counter { font-variant-numeric: tabular-nums; font-weight: 700; }
+</style>
+</head>
+<body>
+<header>
+  <h1>Products</h1>
+  <nav id="nav"><ul>
+    <li><a href="#all">All</a></li>
+    <li><a href="#new">New</a></li>
+    <li><a href="#sale">Sale</a></li>
+  </ul></nav>
+</header>
+
+<section id="hero"><h2>Hero banner</h2><p>This is display:none by design.</p></section>
+
+<main>
+  <div class="cards" id="cards"></div>
+  <div id="save-area">
+    <label for="email">Email</label>
+    <input id="email" name="email" type="email" placeholder="you@example.com" value="prefilled@old.test" autocomplete="off">
+    <label for="plan">Plan</label>
+    <select id="plan" name="plan"><option value="free">Free</option><option value="pro">Pro</option><option value="team">Team</option></select>
+    <label for="terms"><input id="terms" type="checkbox" name="terms"> Accept terms</label>
+    <button id="save" class="primary">Save changes</button>
+    <button id="danger">Delete account</button>
+    <button id="alertBtn">Show alert</button>
+    <button id="modalBtn">Open modal</button>
+    <button id="lateBtn">Load late content</button>
+    <p id="counter">0</p>
+  </div>
+</main>
+
+<div id="overlay"><div id="modal"><h2>Confirm</h2><button id="closeModal">Close</button></div></div>
+
+<script>
+  // Deliberate noise: an uncaught error and a failed request, so page_snapshot has
+  // something real to report.
+  const cards = document.getElementById('cards');
+  const data = [
+    { title: 'Aurora Lamp', price: 42 },
+    { title: 'Basalt Mug', price: 18 },
+    { title: 'Cobalt Chair', price: 240 }
+  ];
+  data.forEach((d, i) => {
+    const el = document.createElement('article');
+    el.className = 'card';
+    el.dataset.testid = 'card-' + i;
+    el.innerHTML = '<span class="tag">new</span><h2>' + d.title + '</h2><p class="price">$' + d.price + '</p><button class="add" data-idx="' + i + '">Add to cart</button>';
+    cards.appendChild(el);
+  });
+
+  document.querySelectorAll('.add').forEach(b => b.addEventListener('click', () => {
+    document.getElementById('counter').textContent = String(Number(document.getElementById('counter').textContent) + 1);
+  }));
+
+  document.getElementById('alertBtn').addEventListener('click', () => { alert('native dialog: confirm me'); });
+  document.getElementById('modalBtn').addEventListener('click', () => { document.getElementById('overlay').classList.add('open'); });
+  document.getElementById('closeModal').addEventListener('click', () => { document.getElementById('overlay').classList.remove('open'); });
+  document.getElementById('lateBtn').addEventListener('click', () => {
+    setTimeout(() => {
+      const p = document.createElement('p');
+      p.id = 'late-content';
+      p.textContent = 'arrived after 700ms';
+      document.getElementById('save-area').appendChild(p);
+    }, 700);
+  });
+
+  // A form to prove submit-blocking guardrails work.
+  const form = document.createElement('form');
+  form.id = 'signup';
+  form.innerHTML = '<input name="x" value="1"><button type="submit">Submit form</button>';
+  document.getElementById('save-area').appendChild(form);
+  form.addEventListener('submit', (e) => { e.preventDefault(); console.log('form submitted'); });
+
+  setTimeout(() => { console.log('console.log from page', { cards: 3 }); }, 50);
+  setTimeout(() => { console.warn('a warning from the page'); }, 80);
+  setTimeout(() => { throw new Error('deliberate uncaught error'); }, 120);
+  fetch('http://localhost:9/nope').catch(() => {});
+</script>
+</body>
+</html>
