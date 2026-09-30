@@ -43,13 +43,18 @@ export function rmDir(dir) {
 
 /**
  * Environment that points the harness at its own state dir and its own browser port.
- * A distinct port per suite avoids two suites fighting over the same debugging endpoint.
+ *
+ * The attach port is pointed at a deliberately closed port so tests NEVER bind to a
+ * browser the developer happens to have running. Without this they silently attach to it,
+ * and the suite then depends on that browser's state: it fails to assert a launched pid,
+ * drives whatever tabs the human had open, and navigates their real session mid-test.
  */
 export function harnessEnv(stateDir, launchPort) {
   return {
     ...process.env,
     WEBH_STATE_DIR: stateDir,
     WEBH_LAUNCH_PORT: String(launchPort),
+    WEBH_ATTACH_PORT: '9', // nothing listens here: force every test to launch its own
     WEBH_LOG_LEVEL: 'error',
     // Never let a developer's exported guardrail overrides leak into the tests.
     WEBH_ALLOW_FORM_SUBMIT: '',

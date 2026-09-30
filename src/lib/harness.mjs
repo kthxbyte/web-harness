@@ -123,8 +123,13 @@ export class Harness {
   }
 
   /**
-   * A fresh browser for this invocation starts on about:blank. Restore the page the
-   * previous invocation left off on, so a sequence of CLI commands reads as one session.
+   * Return to the page the previous invocation was working with.
+   *
+   * Two distinct situations need different handling:
+   *   - a browser we launched has a single blank page, so we NAVIGATE it to the remembered URL
+   *   - a browser that was already running has several real tabs, so we must SELECT the one
+   *     that matches; navigating would hijack whichever tab happened to be first
+   *
    * Runs at most once per process and never overrides an explicit navigation.
    */
   async #maybeRestore() {
@@ -132,8 +137,27 @@ export class Harness {
     this._restored = true;
     const remembered = await readSessionFile();
     const target = remembered?.lastUrl;
+    if (!target || String(target).startsWith('about:')) return;
+
+    if (this.page?.url === target) return; // already there
+
+    // Prefer selecting an existing tab: this is the multi-tab case, and it is what makes
+    // `page_select` stick across separate CLI processes.
+    try {
+      const targets = await this.browser.listTargets();
+      const match = targets.find((t) => t.url === target);
+      if (match) {
+        this.page = await this.browser.attachTo(match);
+        this.#wire(this.page);
+        return;
+      }
+    } catch (err) {
+      log.debug(`tab restore failed, falling back to navigation: ${err.message}`);
+    }
+
+    // No such tab: only take over the current page if it is blank (i.e. ours to use).
     const isBlank = !this.page?.url || String(this.page.url).startsWith('about:');
-    if (target && isBlank && !String(target).startsWith('about:')) {
+    if (isBlank) {
       await this.navigate(target).catch((err) => log.warn(`could not restore ${target}: ${err.message}`));
     }
   }
@@ -353,6 +377,9 @@ export class Harness {
     this.page = page;
     this.#wire(page);
     await this.preparePage(page);
+    // Remember the selection so the next CLI process returns to this tab rather than
+    // whichever tab happens to be first in the browser.
+    await patchSession({ lastUrl: page.url }).catch(() => {});
     await audit('page.select', { targetId: page.targetId, url: page.url });
     return { targetId: page.targetId, url: page.url, title: page.title };
   }
