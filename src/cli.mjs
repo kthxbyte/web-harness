@@ -33,6 +33,7 @@ USAGE
   webh audit [--limit N] [--clear]      inspect what the agent changed
   webh close [--force]                  close the browser
   webh daemon                           run the local daemon for the browser side panel
+  webh token [--copy]                   print the daemon token for the side panel
 
 COMMON FLAGS
   --json              print only the machine-readable result payload

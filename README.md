@@ -50,9 +50,29 @@ $ npm link          # optional: puts `webh` on your PATH
 No `npm install` is required. If your npm cache is read-only (sandboxed agents), nothing
 here needs it anyway.
 
-## Three ways to use it
+## Four ways to use it
 
-### 1. CLI — for you, and for agents that only have a shell
+### 1. Browser side panel — a control surface beside the page
+
+A Brave/Chrome side panel that stays beside the tab you are working on and drives it. It
+survives navigation, tab switches and reloads, because it is a browser UI element rather
+than something injected into the page.
+
+```console
+$ brave-browser --remote-debugging-port=9222 --user-data-dir=/tmp/webh-debug   # terminal 1
+$ webh daemon                                                                  # terminal 2
+$ webh token                                                                   # paste into the panel
+```
+
+Then load it: `brave://extensions` → **Developer mode** → **Load unpacked** →
+`extension/`. Click the toolbar icon to open the panel and paste the token into ⚙.
+
+Verify: the status line reads `daemon ok · <browser>` with your active tab named beneath
+it, and follows along as you switch tabs.
+
+Full setup, architecture and security model: [extension/README.md](extension/README.md).
+
+### 2. CLI — for you, and for agents that only have a shell
 
 ```console
 $ webh tools                                  # list all 22 tools
@@ -84,7 +104,7 @@ $ webh page_eval --expression "document.querySelector('#counter').textContent"
 Use `webh close` when finished (or `--close` on any command; `WEBH_KEEP_ALIVE=0` restores
 close-after-each-call).
 
-### 2. MCP server — for Claude Code, OpenCode, DSH
+### 3. MCP server — for Claude Code, OpenCode, DSH
 
 ```jsonc
 // e.g. .mcp.json in your project, or the equivalent in your agent's config
@@ -118,7 +138,7 @@ OpenCode (`opencode.json`):
 Verify with `webh tools` — the MCP catalogue and the CLI expose exactly the same 22 tools,
 so anything you can do by hand the agent can do too.
 
-### 3. Library
+### 4. Library
 
 ```js
 import { Harness, invoke } from 'web-harness';
@@ -213,6 +233,9 @@ hang the agent, so dialogs are auto-accepted and reported in `page_snapshot`.
 | `WEBH_NO_SANDBOX` | `false` | Pass `--no-sandbox` (containers) |
 | `WEBH_LOG_LEVEL` | `info` | `error`/`warn`/`info`/`debug`/`trace` (stderr only) |
 | `WEBH_MAX_RESULT_CHARS` | `60000` | Truncation limit protecting the agent's context |
+| `WEBH_DAEMON_PORT` | `8790` | Port the side panel connects to |
+| `WEBH_DAEMON_HOST` | `127.0.0.1` | Bind address. Leave as loopback; the daemon executes JS in your browser |
+| `WEBH_DAEMON_TOKEN` | random | Pin the daemon token instead of generating one per start |
 
 ## Tests
 
@@ -230,15 +253,28 @@ of reporting, state that does not survive a process boundary — are invisible t
 ## How it fits together
 
 ```
-webh (CLI) ──┐
-             ├──> Harness ──> Browser ──> CDP WebSocket ──> Chromium
-MCP server ──┘        │          │
-                      │          └── PageSession per tab: console/network buffers, events
-                      ├── tools/    22 tool definitions + handlers
-                      ├── guardrails 3 layers + audit log
-                      └── session.mjs  persisted browser + current URL
+  webh (CLI) ──┐
+               │
+  MCP server ──┼──> Harness ──> Browser ──> CDP WebSocket ──> Chromium
+               │        │          │
+  daemon ──────┘        │          └── PageSession per tab: console/network buffers, events
+  (side panel)          ├── tools/      22 tool definitions + handlers
+                        ├── guardrails  3 layers + audit log
+                        └── session.mjs persisted browser + current URL
 ```
 
-One long-lived process owns one browser. The CLI additionally persists the browser pid and
-current URL so that *separate* processes behave like one session — that is what makes
-`webh page_interact` followed by `webh page_snapshot` work.
+Every front end drives the same `Harness`, so the tool definitions, guardrails and audit log
+are shared — one audit trail covering what you did by hand and what an agent did.
+
+**One owner per browser.** Only one debugger can attach to a tab at a time, so exactly one
+process holds the CDP connection. The MCP server and CLI are short-lived and own it while
+they run; the daemon owns it for as long as it runs, which is what lets the side panel stay
+attached without competing with the CLI.
+
+**Why the CLI persists state and the daemon does not.** The CLI is a sequence of separate
+processes, so it writes the browser pid and current URL to disk to make them behave like one
+session — that is what makes `webh page_interact` followed by `webh page_snapshot` work. The
+daemon is a single long-lived process and needs none of that. It does need one thing CDP
+cannot provide: the extension tells it which tab is active, because "active tab" is
+browser-UI state, not a protocol property.
+
