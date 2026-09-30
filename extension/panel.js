@@ -373,7 +373,17 @@ ui.run.addEventListener('click', run);
 ui.clear.addEventListener('click', clearLog);
 
 clearLog();
-await loadSettings();
-await refreshTools();
-await poll();
-setInterval(poll, 2000);
+
+// Wrapped rather than using top-level await: extension pages are modules, but a parse
+// failure here would leave a silently blank panel, which is a miserable thing to debug.
+// An explicit async entry point keeps the surface simple and the failure visible.
+(async function init() {
+  try {
+    await loadSettings();
+    await refreshTools();
+    await poll();
+    setInterval(poll, 2000);
+  } catch (err) {
+    setConn(false, `panel failed to start: ${err.message}`);
+  }
+})();
