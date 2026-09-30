@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "web-harness panel",
+  "version": "0.1.0",
+  "description": "A lateral control surface for the active tab, backed by the local web-harness daemon.",
+  "minimum_chrome_version": "114",
+  "permissions": ["sidePanel", "tabs", "storage"],
+  "host_permissions": ["http://127.0.0.1/*", "http://localhost/*"],
+  "background": {
+    "service_worker": "service-worker.js",
+    "type": "module"
+  },
+  "side_panel": {
+    "default_path": "panel.html"
+  },
+  "action": {
+    "default_title": "Open the web-harness panel"
+  }
+}

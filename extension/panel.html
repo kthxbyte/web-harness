@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>web-harness</title>
+<link rel="stylesheet" href="panel.css">
+</head>
+<body>
+  <header>
+    <div class="brand">
+      <span class="mark"></span>
+      <span>web-harness</span>
+    </div>
+    <button id="settings-toggle" class="ghost" title="Connection settings">⚙</button>
+  </header>
+
+  <section id="status" class="status">
+    <div class="status-row">
+      <span id="conn-dot" class="dot"></span>
+      <span id="conn-text">connecting…</span>
+    </div>
+    <div class="tab-chip" id="tab-chip" title="The tab commands will act on">
+      <span class="tab-dot"></span>
+      <span id="tab-text">no active tab</span>
+    </div>
+  </section>
+
+  <section id="settings" class="settings" hidden>
+    <label>Daemon endpoint
+      <input id="daemon-url" type="text" spellcheck="false" placeholder="http://127.0.0.1:8790">
+    </label>
+    <label>Token
+      <input id="daemon-token" type="password" spellcheck="false" placeholder="paste from .webh/daemon.json">
+    </label>
+    <div class="settings-actions">
+      <button id="save-settings" class="primary">Save</button>
+      <button id="test-conn" class="ghost">Test</button>
+      <span id="settings-note" class="note"></span>
+    </div>
+    <p class="hint">
+      The token lives in <code>.webh/daemon.json</code>. It never leaves this machine, and it
+      is what stops a web page from driving your browser through the daemon.
+    </p>
+  </section>
+
+  <main>
+    <label class="field">
+      <span class="field-label">Tool</span>
+      <select id="tool-select"></select>
+    </label>
+    <p id="tool-desc" class="tool-desc"></p>
+    <div id="tool-args" class="args"></div>
+    <div class="run-row">
+      <button id="run" class="primary">Run on active tab</button>
+      <button id="clear" class="ghost" title="Clear the log">Clear</button>
+    </div>
+  </main>
+
+  <section class="log-wrap">
+    <div class="log-head">
+      <span>Activity</span>
+      <span id="log-count" class="count"></span>
+    </div>
+    <div id="log" class="log"></div>
+  </section>
+
+  <script type="module" src="panel.js"></script>
+</body>
+</html>

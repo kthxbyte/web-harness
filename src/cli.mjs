@@ -32,6 +32,7 @@ USAGE
   webh screenshot [--out FILE]          shortcut for page_screenshot
   webh audit [--limit N] [--clear]      inspect what the agent changed
   webh close [--force]                  close the browser
+  webh daemon                           run the local daemon for the browser side panel
 
 COMMON FLAGS
   --json              print only the machine-readable result payload
@@ -265,6 +266,46 @@ async function main() {
 
   if (command === 'tools') {
     printTools(rest.includes('--json'));
+    return 0;
+  }
+
+  // `daemon` is a long-lived server, not a tool. Run it in THIS process so Ctrl-C and
+  // signals reach it directly instead of through an extra child.
+  if (command === 'daemon' || command === 'serve') {
+    await import('./daemon.mjs');
+    // The daemon installs its own signal handlers and keeps the event loop alive.
+    return await new Promise(() => {});
+  }
+
+  // Print just the token so it can be piped straight into the panel: `webh token`
+  if (command === 'token') {
+    const file = path.join(config.stateDir, 'daemon.json');
+    // Parse flags HERE: this block runs before the shared `flags` parsing below, and
+    // referencing that later binding threw a ReferenceError which the catch swallowed
+    // and misreported as "no daemon" — a wrong diagnosis that would send you hunting
+    // for a process that was running fine.
+    const { flags: tokenFlags } = parseArgv(rest);
+    let info;
+    try {
+      info = JSON.parse(fs.readFileSync(file, 'utf8'));
+    } catch {
+      process.stderr.write(`No running daemon found (${file}). Start one with \`webh daemon\`.\n`);
+      return 1;
+    }
+    if (tokenFlags.copy && process.platform === 'linux') {
+      // Best-effort clipboard: xclip/wl-copy may not exist, and that is not fatal.
+      try {
+        const { execFileSync } = await import('node:child_process');
+        const cmd = process.env.WAYLAND_DISPLAY ? 'wl-copy' : 'xclip';
+        const args = cmd === 'wl-copy' ? [] : ['-selection', 'clipboard'];
+        execFileSync(cmd, args, { input: info.token });
+        process.stdout.write(`copied to clipboard (${info.token.length} chars)\n`);
+        return 0;
+      } catch {
+        process.stderr.write('(clipboard tool unavailable; printing instead)\n');
+      }
+    }
+    process.stdout.write(info.token + '\n');
     return 0;
   }
   if (command in ALIASES && ALIASES[command]) command = ALIASES[command];
