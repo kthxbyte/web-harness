@@ -64,10 +64,10 @@ export function harnessEnv(stateDir, launchPort) {
 }
 
 /** Run the CLI once and resolve with its exit code and streams. */
-export function runCli(args, { env, timeoutMs = 90_000 } = {}) {
+export function runCli(args, { env, timeoutMs = 90_000, cwd = ROOT } = {}) {
   return new Promise((resolve) => {
     const child = spawn(process.execPath, [path.join(ROOT, 'src', 'cli.mjs'), ...args], {
-      cwd: ROOT,
+      cwd,
       env,
       stdio: ['ignore', 'pipe', 'pipe'],
     });

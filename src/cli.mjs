@@ -11,14 +11,56 @@
  *   webh dom_query --selector "#app .card" --limit 5
  *   webh screenshot --fullPage --out shot.png
  *   webh eval --expression "document.title"
+ *
+ * PROJECT SCOPING. `webh start` puts a project's browser, token and audit trail in
+ * <project>/.webh, but that is useless if a later `webh page_eval`, run from the same
+ * directory, quietly writes to the harness checkout's state instead — you would be
+ * inspecting the right browser and recording it in the wrong project. So when the working
+ * directory looks like a project that has been started already (it has a .webh), every
+ * command is scoped there.
+ *
+ * The detection runs BEFORE the imports below, via a re-exec, because config.mjs caches
+ * process.env at import time and ESM imports are hoisted — by the time module code could
+ * set the variable, config would already have read it.
  */
 import fs from 'node:fs';
-import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { Harness } from './lib/harness.mjs';
-import { invoke, listTools, getTool, toolNames } from './lib/tools/index.mjs';
-import { config } from './lib/config.mjs';
-import { flushAudit } from './lib/audit.mjs';
+import fsp from 'node:fs/promises';
+import { fileURLToPath as __fileURLToPath } from 'node:url';
+
+/**
+ * Everything that reads config must be imported DYNAMICALLY, below the scoping check.
+ * ESM hoists static imports and evaluates them before any module body runs, so a static
+ * `import { config } from './lib/config.mjs'` here would read process.env before the
+ * re-exec below could ever set it — leaving the scoping silently ineffective.
+ */
+let Harness;
+let invoke;
+let listTools;
+let getTool;
+let toolNames;
+let config;
+let flushAudit;
+
+if (!process.env.WEBH_PROJECT_DIR && !process.env.WEBH_STATE_DIR && !process.env.WEBH_SCOPED) {
+  const cwd = process.cwd();
+  const harnessRoot = path.resolve(path.dirname(__fileURLToPath(import.meta.url)), '..');
+  // Only adopt the cwd when it is NOT the harness checkout itself (which has its own .webh)
+  // and it already carries project state, which is the signal `webh start` was run here.
+  if (cwd !== harnessRoot && fs.existsSync(path.join(cwd, '.webh'))) {
+    const { spawnSync } = await import('node:child_process');
+    const res = spawnSync(process.execPath, [__fileURLToPath(import.meta.url), ...process.argv.slice(2)], {
+      stdio: 'inherit',
+      env: { ...process.env, WEBH_PROJECT_DIR: cwd, WEBH_SCOPED: '1' },
+    });
+    process.exit(res.status ?? 1);
+  }
+}
+
+({ Harness } = await import('./lib/harness.mjs'));
+({ invoke, listTools, getTool, toolNames } = await import('./lib/tools/index.mjs'));
+({ config } = await import('./lib/config.mjs'));
+({ flushAudit } = await import('./lib/audit.mjs'));
 
 const VERSION = '0.1.0';
 
